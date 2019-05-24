@@ -19,7 +19,7 @@ constexpr std::size_t GetConstCharPtrLength(const char(&)[Size])
 
 static FVector ConvertOpenGEXFloat3(const float* InFloat3)
 {
-	return { InFloat3[0], InFloat3[1], InFloat3[2] };
+	return { InFloat3[0], -InFloat3[1], InFloat3[2] };
 }
 
 static FVector2D ConvertOpenGEXFloat2(const float* InFloat2)
