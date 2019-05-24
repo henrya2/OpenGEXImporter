@@ -276,6 +276,7 @@ UStaticMesh* ImportOneMeshFromOpenGEX(OGEX::OpenGexDataDescription* OpenGexDataD
 				UVs[0].AddZeroed(Indices.GetElementCount());
 				bDidGenerateTexCoords = true;
 				NumUVs = 1;
+				VertexInstanceUVs.SetNumIndices(NumUVs);
 			}
 			else
 			{
