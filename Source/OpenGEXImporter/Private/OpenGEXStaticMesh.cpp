@@ -27,6 +27,33 @@ static FVector2D ConvertOpenGEXFloat2(const float* InFloat2)
 	return { InFloat2[0], InFloat2[1] };
 }
 
+template <typename T>
+TArray<T> ReIndexForOpenGEX(OGEX::VertexArrayStructure* Source, const Array<uint32>& Indices);
+
+template <>
+TArray<FVector> ReIndexForOpenGEX<FVector>(OGEX::VertexArrayStructure* Source, const Array<uint32>& Indices)
+{
+	TArray<FVector> Result;
+	Result.Reserve(Indices.GetElementCount());
+	for (int32 i = 0; i < Indices.GetElementCount(); ++i)
+	{
+		Result.Add(ConvertOpenGEXFloat3(Source->GetDataStructure()->GetArrayDataElement(Indices[i])));
+	}
+	return Result;
+}
+
+template <>
+TArray<FVector2D> ReIndexForOpenGEX<FVector2D>(OGEX::VertexArrayStructure* Source, const Array<uint32>& Indices)
+{
+	TArray<FVector2D> Result;
+	Result.Reserve(Indices.GetElementCount());
+	for (int32 i = 0; i < Indices.GetElementCount(); ++i)
+	{
+		Result.Add(ConvertOpenGEXFloat2(Source->GetDataStructure()->GetArrayDataElement(Indices[i])));
+	}
+	return Result;
+}
+
 static void AssignMaterialsForOpenGEX(OGEX::OpenGexDataDescription* OpenGexDataDescriptionPtr, OGEX::GeometryNodeStructure* GeometryNode, int32 LODIndex, UStaticMesh* StaticMesh, TMap<int32, int32>& OutMaterialIndexToSlot, const TMap<FName, UMaterial*>& Materials, const TSet<int32>& MaterialIndices)
 {
 	TArray<int32> SortedMaterialIndices = MaterialIndices.Array();
@@ -179,8 +206,8 @@ UStaticMesh* ImportOneMeshFromOpenGEX(OGEX::OpenGexDataDescription* OpenGexDataD
 		TSet<int32> MaterialIndicesUsed;
 
 		// Add the vertex
-		TArray<TMap<int32, FVertexID>> PositionIndexToVertexID_PerPrim;
-		PositionIndexToVertexID_PerPrim.AddDefaulted(MeshStruct->GetIndexArrayStructures().GetElementCount());
+		TMap<int32, FVertexID> PositionIndexToVertexID;
+		PositionIndexToVertexID;
 		for (int32 PrimIndex = 0; PrimIndex < MeshStruct->GetIndexArrayStructures().GetElementCount(); ++PrimIndex)
 		{
 			OGEX::IndexArrayStructure* IndexArrayStruct = MeshStruct->GetIndexArrayStructures()[PrimIndex];
@@ -203,14 +230,126 @@ UStaticMesh* ImportOneMeshFromOpenGEX(OGEX::OpenGexDataDescription* OpenGexDataD
 		{
 			FVertexID VertexID = MeshDescription->CreateVertex();
 			VertexPositions[VertexID] = ConvertOpenGEXFloat3(PositionVertexArrayStruct->GetDataStructure()->GetArrayDataElement(i));
+			PositionIndexToVertexID.Add(i, VertexID);
 		}
 
-		TArray<FVector2D> UVs[MAX_MESH_TEXTURE_COORDS_MD];
-		for (int32 UVIndex = 0; UVIndex < NumUVs; ++UVIndex)
+		//TArray<FVector2D> UVs[MAX_MESH_TEXTURE_COORDS_MD];
+		//for (int32 UVIndex = 0; UVIndex < NumUVs; ++UVIndex)
+		//{
+		//	for (int32 i = 0; i < TexcoordVertexArrayStructs[UVIndex]->GetDataStructure()->GetDataElementCount(); ++i)
+		//	{
+		//		UVs[UVIndex].Add(ConvertOpenGEXFloat2(TexcoordVertexArrayStructs[UVIndex]->GetDataStructure()->GetArrayDataElement(i)));
+		//	}
+		//}
+
+		Array<OGEX::IndexArrayStructure*>& Primitives = MeshStruct->GetIndexArrayStructures();
+		for (int32 PrimIndex = 0; PrimIndex < Primitives.GetElementCount(); ++PrimIndex)
 		{
-			for (int32 i = 0; i < TexcoordVertexArrayStructs[UVIndex]->GetDataStructure()->GetDataElementCount(); ++i)
+			OGEX::IndexArrayStructure* Prim = Primitives[PrimIndex];
+			FPolygonGroupID CurrentPolygonGroupID = MaterialIndexToPolygonGroupID[Prim->GetMaterialIndex()];
+			uint32 TriCount = Prim->GetIndicesArray().GetElementCount() / 3;
+
+			//TSet<uint32> UniqueIndices;
+			//for (int32 i = 0; i < Prim->GetIndicesArray().GetElementCount(); ++i)
+			//{
+			//	UniqueIndices.Add(Prim->GetIndicesArray()[i]);
+			//}
+			
+			Array<uint32>& Indices = Prim->GetIndicesArray();
+			TArray<FVector> Normals;
+
+			if (NormalVertexArrayStruct)
 			{
-				UVs[UVIndex].Add(ConvertOpenGEXFloat2(TexcoordVertexArrayStructs[UVIndex]->GetDataStructure()->GetArrayDataElement(i)));
+				Normals = ReIndexForOpenGEX<FVector>(NormalVertexArrayStruct, Indices);
+			}
+
+			TArray<FVector> Tangents;
+			if (TangentVertexArrayStruct)
+			{
+				Tangents = ReIndexForOpenGEX<FVector>(TangentVertexArrayStruct, Indices);
+			}
+
+			TArray<FVector2D> UVs[MAX_MESH_TEXTURE_COORDS_MD];
+
+			if (NumUVs <= 0)
+			{
+				UVs[0].AddZeroed(Indices.GetElementCount());
+				bDidGenerateTexCoords = true;
+				NumUVs = 1;
+			}
+			else
+			{
+				for (int32 UVIndex = 0; UVIndex < NumUVs; ++UVIndex)
+				{
+					UVs[UVIndex] = ReIndexForOpenGEX<FVector2D>(TexcoordVertexArrayStructs[UVIndex], Indices);
+				}
+			}
+
+			for (uint32 TriangleIndex = 0; TriangleIndex < TriCount; ++TriangleIndex)
+			{
+				FVertexInstanceID CornerVertexInstanceIDs[3];
+				FVertexID CornerVertexIDs[3];
+				for (int32 Corner = 0; Corner < 3; ++Corner)
+				{
+					uint32 IndicesIndex = TriangleIndex * 3 + Corner;
+					int32 VertexIndex = Indices[IndicesIndex];
+
+					FVertexID VertexID = PositionIndexToVertexID[VertexIndex];
+					const FVertexInstanceID& VertexInstanceID = MeshDescription->CreateVertexInstance(VertexID);
+
+					if (Tangents.Num() > 0)
+					{
+						VertexInstanceTangents[VertexInstanceID] = Tangents[IndicesIndex];
+					}
+					if (Normals.Num() > 0)
+					{
+						VertexInstanceNormals[VertexInstanceID] = Normals[IndicesIndex];
+					}
+
+					if (Tangents.Num() > 0 && Normals.Num() > 0)
+					{
+						VertexInstanceBinormalSigns[VertexInstanceID] = GetBasisDeterminantSign(VertexInstanceTangents[VertexInstanceID].GetSafeNormal(),
+							(VertexInstanceNormals[VertexInstanceID] ^ VertexInstanceTangents[VertexInstanceID]).GetSafeNormal(),
+							VertexInstanceNormals[VertexInstanceID].GetSafeNormal());
+					}
+
+					for (int32 UVIndex = 0; UVIndex < NumUVs; ++UVIndex)
+					{
+						VertexInstanceUVs.Set(VertexInstanceID, UVIndex, UVs[UVIndex][IndicesIndex]);
+					}
+
+					CornerVertexInstanceIDs[Corner] = VertexInstanceID;
+					CornerVertexIDs[Corner] = VertexID;
+				}
+
+				TArray<FMeshDescription::FContourPoint> Contours;
+				for (int32 Corner = 0; Corner < 3; ++Corner)
+				{
+					int32 ContourPointIndex = Contours.AddDefaulted();
+					FMeshDescription::FContourPoint& ContourPoint = Contours[ContourPointIndex];
+					// Find the matching edge ID
+					uint32 CornerIndices[2];
+					CornerIndices[0] = (Corner + 0) % 3;
+					CornerIndices[1] = (Corner + 1) % 3;
+
+					FVertexID EdgeVertexIDs[2];
+					EdgeVertexIDs[0] = CornerVertexIDs[CornerIndices[0]];
+					EdgeVertexIDs[1] = CornerVertexIDs[CornerIndices[1]];
+
+					FEdgeID MatchEdgeID = MeshDescription->GetVertexPairEdge(EdgeVertexIDs[0], EdgeVertexIDs[1]);
+					if (MatchEdgeID == FEdgeID::Invalid)
+					{
+						MatchEdgeID = MeshDescription->CreateEdge(EdgeVertexIDs[0], EdgeVertexIDs[1]);
+						EdgeHardnesses[MatchEdgeID] = false;
+						EdgeCreaseSharpnesses[MatchEdgeID] = 0.0f;
+					}
+					ContourPoint.EdgeID = MatchEdgeID;
+					ContourPoint.VertexInstanceID = CornerVertexInstanceIDs[CornerIndices[0]];
+				}
+
+				const FPolygonID NewPolygonID = MeshDescription->CreatePolygon(CurrentPolygonGroupID, Contours);
+				FMeshPolygon& Polygon = MeshDescription->GetPolygon(NewPolygonID);
+				MeshDescription->ComputePolygonTriangulation(NewPolygonID, Polygon.Triangles);
 			}
 		}
 
