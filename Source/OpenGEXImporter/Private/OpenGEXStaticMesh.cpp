@@ -80,11 +80,11 @@ static void AssignMaterialsForOpenGEX(OGEX::OpenGexDataDescription* OpenGexDataD
 }
 
 static void DecomposeVertexArraysForOpenGEX(OGEX::OpenGexDataDescription* OpenGexDataDescriptionPtr, OGEX::MeshStructure* MeshStruct,
-	OGEX::VertexArrayStructure* PositionVertexArrayStruct,
-	OGEX::VertexArrayStructure* NormalVertexArrayStruct,
-	OGEX::VertexArrayStructure* TangentVertexArrayStruct,
-	OGEX::VertexArrayStructure* BitangentVertexArrayStruct,
-	OGEX::VertexArrayStructure* ColorVertexArrayStruct,
+	OGEX::VertexArrayStructure* & PositionVertexArrayStruct,
+	OGEX::VertexArrayStructure* & NormalVertexArrayStruct,
+	OGEX::VertexArrayStructure* & TangentVertexArrayStruct,
+	OGEX::VertexArrayStructure* & BitangentVertexArrayStruct,
+	OGEX::VertexArrayStructure* & ColorVertexArrayStruct,
 	TArray<OGEX::VertexArrayStructure*>& TexcoordVertexArrayStructs)
 {
 	Array<OGEX::VertexArrayStructure*>& VerteArrayStructures = MeshStruct->GetVertexArrayStructures();
