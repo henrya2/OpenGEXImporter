@@ -8,39 +8,9 @@
 #include "Serialization/ArrayReader.h"
 #include "Editor/UnrealEd/Public/Editor.h"
 #include "OpenGEX.h"
-
-UStaticMesh* ImportOneMeshFromOpenGEX(OGEX::OpenGexDataDescription* OpenGexDataDescriptionPtr, OGEX::GeometryNodeStructure* GeometryNode, const FString& FileName, UObject* InParent, FName InName, EObjectFlags Flags, FFeedbackContext* Warn)
-{
-	UStaticMesh* StaticMesh = nullptr;
-
-	if (!GeometryNode->geometryObjectStructure)
-		return StaticMesh;
-
-	OGEX::GeometryObjectStructure* GeometryObject = GeometryNode->geometryObjectStructure;
-
-	return StaticMesh;
-}
-
-TArray<UStaticMesh*> ImportMeshesFromOpenGEX(OGEX::OpenGexDataDescription* OpenGexDataDescriptionPtr, const FString& FileName, UObject* InParent, FName InName, EObjectFlags Flags, FFeedbackContext* Warn)
-{
-	TArray<UStaticMesh*> Result;
-
-	Structure* StructureNode = OpenGexDataDescriptionPtr->GetRootStructure()->GetFirstSubnode();
-	for (; StructureNode; StructureNode = StructureNode->Next())
-	{
-		if (StructureNode->GetStructureType() == OGEX::kStructureGeometryNode)
-		{
-			OGEX::GeometryNodeStructure* GeometryNode = static_cast<OGEX::GeometryNodeStructure*>(StructureNode);
-			UStaticMesh* RetStaticMesh = ImportOneMeshFromOpenGEX(OpenGexDataDescriptionPtr, GeometryNode, FileName, InParent, InName, Flags, Warn);
-			if (RetStaticMesh)
-			{
-				Result.Add(RetStaticMesh);
-			}
-		}
-	}
-
-	return Result;
-}
+#include "OpenGEXUtility.h"
+#include "OpenGEXStaticMesh.h"
+#include "OpenGEXMaterial.h"
 
 UStaticMesh* ImportMeshesAndMaterialsFromOpenGEXFile(const FString& FileName, UObject* InParent, FName InName, EObjectFlags Flags, FFeedbackContext* Warn)
 {
@@ -58,7 +28,9 @@ UStaticMesh* ImportMeshesAndMaterialsFromOpenGEXFile(const FString& FileName, UO
 		{
 			OGEX::OpenGexDataDescription openGexDataDescription;
 			openGexDataDescription.ProcessText(Buffer.GetData());
-			TArray<UStaticMesh*> StaticMeshes = ImportMeshesFromOpenGEX(&openGexDataDescription, FileName, InParent, InName, Flags, Warn);
+
+			TMap<FName, UMaterial*> Materials = ImportMaterialsFromOpenGEX(&openGexDataDescription, InParent, FileName, InName, Flags);
+			TArray<UStaticMesh*> StaticMeshes = ImportMeshesFromOpenGEX(&openGexDataDescription, Materials, FileName, InParent, InName, Flags, Warn);
 			if (StaticMeshes.Num() > 0)
 			{
 				StaticMesh = StaticMeshes[0];
@@ -95,6 +67,7 @@ UObject* UOpenGEXImporterFactory::FactoryCreateFile(UClass* InClass, UObject* In
 	FEditorDelegates::OnAssetPreImport.Broadcast(this, InClass, InParent, InName, Parms);
 
 	Warn->Log(Filename);
+
 	StaticMesh = ImportMeshesAndMaterialsFromOpenGEXFile(Filename, InParent, InName, Flags, Warn);
 
 	FEditorDelegates::OnAssetPostImport.Broadcast(this, StaticMesh);

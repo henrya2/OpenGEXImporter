@@ -232,7 +232,7 @@ namespace OGEX
 		private:
 
 			unsigned_int32				materialIndex;
-			const MaterialStructure		*targetStructure;
+			MaterialStructure		*targetStructure;
 
 		public:
 
@@ -244,7 +244,7 @@ namespace OGEX
 				return (materialIndex);
 			}
 
-			const MaterialStructure *GetTargetStructure(void) const
+			MaterialStructure *GetTargetStructure(void) const
 			{
 				return (targetStructure);
 			}
@@ -455,7 +455,7 @@ namespace OGEX
 			bool		motionBlurFlag[2];
 
 			GeometryObjectStructure					*geometryObjectStructure;
-			Array<const MaterialStructure *, 4>		materialStructureArray;
+			Array<MaterialStructure *, 4>		materialStructureArray;
 
 			const ObjectStructure *GetObjectStructure(void) const;
 
@@ -881,6 +881,10 @@ namespace OGEX
 			Map<MeshStructure>		meshMap;
 			Map<MorphStructure>		morphMap;
 
+			int32 meshCount;
+			int32 skinCount;
+			int32 morphCount;
+
 		public:
 
 			GeometryObjectStructure();
@@ -901,14 +905,29 @@ namespace OGEX
 				return (motionBlurFlag);
 			}
 
-			const Map<MeshStructure> *GetMeshMap(void) const
+			Map<MeshStructure> *GetMeshMap(void)
 			{
 				return (&meshMap);
 			}
 
-			const Map<MorphStructure> *GetMorphMap(void) const
+			Map<MorphStructure> *GetMorphMap(void)
 			{
 				return (&morphMap);
+			}
+
+			int32 GetMeshCount() const
+			{
+				return meshCount;
+			}
+
+			int32 GetSkinCount() const
+			{
+				return skinCount;
+			}
+
+			int32 GetMorphCount() const
+			{
+				return morphCount;
 			}
 
 			bool ValidateProperty(const DataDescription *dataDescription, const String& identifier, DataType *type, void **value);
@@ -1158,6 +1177,8 @@ namespace OGEX
 			bool			twoSidedFlag;
 			const char		*materialName;
 
+			Array<AttribStructure*> attribStructures;
+
 		public:
 
 			MaterialStructure();
@@ -1171,6 +1192,11 @@ namespace OGEX
 			const char *GetMaterialName(void) const
 			{
 				return (materialName);
+			}
+
+			Array<AttribStructure*>& GetAttribStructures()
+			{
+				return attribStructures;
 			}
 
 			bool ValidateProperty(const DataDescription *dataDescription, const String& identifier, DataType *type, void **value);

@@ -356,7 +356,7 @@ DataResult MaterialRefStructure::ProcessData(DataDescription *dataDescription)
 	const DataStructure<RefDataType> *dataStructure = static_cast<const DataStructure<RefDataType> *>(structure);
 	if (dataStructure->GetDataElementCount() != 0)
 	{
-		const Structure *materialStructure = dataDescription->FindStructure(dataStructure->GetDataElement(0));
+		Structure *materialStructure = dataDescription->FindStructure(dataStructure->GetDataElement(0));
 		if (materialStructure)
 		{
 			if (materialStructure->GetStructureType() != kStructureMaterial)
@@ -364,7 +364,7 @@ DataResult MaterialRefStructure::ProcessData(DataDescription *dataDescription)
 				return (kDataOpenGexInvalidMaterialRef);
 			}
 
-			targetStructure = static_cast<const MaterialStructure *>(materialStructure);
+			targetStructure = static_cast<MaterialStructure *>(materialStructure);
 			return (kDataOkay);
 		}
 	}
@@ -955,7 +955,7 @@ DataResult GeometryNodeStructure::ProcessData(DataDescription *dataDescription)
 		{
 			if (structure->GetStructureType() == kStructureMaterialRef)
 			{
-				const MaterialRefStructure *materialRefStructure = static_cast<const MaterialRefStructure *>(structure);
+				MaterialRefStructure *materialRefStructure = static_cast<MaterialRefStructure *>(structure);
 				materialStructureArray[materialRefStructure->GetMaterialIndex()] = materialRefStructure->GetTargetStructure();
 			}
 
@@ -2035,8 +2035,9 @@ DataResult GeometryObjectStructure::ProcessData(DataDescription *dataDescription
 		return (result);
 	}
 
-	int32 meshCount = 0;
-	int32 skinCount = 0;
+	meshCount = 0;
+	skinCount = 0;
+	morphCount = 0;
 
 	Structure *structure = GetFirstCoreSubnode();
 	while (structure)
@@ -2060,6 +2061,8 @@ DataResult GeometryObjectStructure::ProcessData(DataDescription *dataDescription
 			{
 				return (kDataOpenGexDuplicateMorph);
 			}
+
+			morphCount++;
 		}
 
 		structure = structure->Next();
@@ -2710,13 +2713,25 @@ DataResult MaterialStructure::ProcessData(DataDescription *dataDescription)
 		return (result);
 	}
 
-	const Structure *structure = GetFirstSubstructure(kStructureName);
+	Structure *structure = GetFirstSubstructure(kStructureName);
 	if (structure)
 	{
 		if (GetLastSubstructure(kStructureName) != structure)
 		{
 			return (kDataExtraneousSubstructure);
 		}
+		materialName = static_cast<NameStructure *>(structure)->GetName();
+	}
+
+	structure = GetFirstSubnode();
+	while (structure)
+	{
+		if (structure->GetBaseStructureType() == kStructureAttrib)
+		{
+			attribStructures.AddElement(static_cast<AttribStructure *>(structure));
+		}
+
+		structure = structure->Next();
 	}
 
 	// Do application-specific material processing here.
